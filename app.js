@@ -40,7 +40,10 @@ app.use(methodOverride("_method"));
 app.engine("ejs", ejsMate);
 app.use(express.static(path.join(__dirname, "public")));
 
-const { MongoStore } = require("connect-mongo");
+let MongoStore = require("connect-mongo");
+if (MongoStore && typeof MongoStore.create !== "function" && MongoStore.default) {
+  MongoStore = MongoStore.default;
+}
 
 const store = MongoStore.create({
   mongoUrl: process.env.ATLASDB_URL,
