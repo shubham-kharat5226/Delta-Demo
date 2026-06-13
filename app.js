@@ -40,16 +40,21 @@ app.use(methodOverride("_method"));
 app.engine("ejs", ejsMate);
 app.use(express.static(path.join(__dirname, "public")));
 
+const { MongoStore } = require("connect-mongo");
+
+const store = MongoStore.create({
+  mongoUrl: process.env.ATLASDB_URL,
+  crypto: {
+    secret: process.env.SECRET,
+  },
+  touchAfter: 24 * 3600,
+});
 
 const sessionOptions = {
-  secret: process.env.SECRET,
+  store,
+  secret: process.env.SECRET || "major-project-secret",
   resave: false,
-  saveUninitialized: true,
-  cookie: {
-    expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    httpOnly: true,
-  },
+  saveUninitialized: false,
 };
 
 app.use(session(sessionOptions));
