@@ -1,7 +1,7 @@
 <% layout("layouts/boilearplate") %>
 
     <script>
-        let mapToken = "<%= process.env.MAP_TOKEN %>";
+        let mapToken = "<%= process.env.MAPBOX_TOKEN || process.env.MAP_TOKEN || '' %>";
         let listing = <%- JSON.stringify(listing) %>;
     </script>
 

@@ -1,8 +1,11 @@
 const Listing = require("../models/listing");
 const mongoose = require("mongoose");
 const mbxGeocoding = require("@mapbox/mapbox-sdk/services/geocoding");
-const mapBoxToken = process.env.MAP_TOKEN;
-const geocodingClient = mbxGeocoding({ accessToken: mapBoxToken });
+
+const mapBoxToken = process.env.MAPBOX_TOKEN || process.env.MAP_TOKEN;
+const geocodingClient = mapBoxToken
+  ? mbxGeocoding({ accessToken: mapBoxToken })
+  : null;
 
 module.exports.index = async (req, res) => {
   const allListings = await Listing.find({});
@@ -34,6 +37,11 @@ module.exports.showListings = async (req, res) => {
 };
 
 module.exports.createListing = async (req, res, next) => {
+  if (!geocodingClient) {
+    req.flash("error", "Mapbox access token is not configured.");
+    return res.redirect("/listings/new");
+  }
+
   let response = await geocodingClient
     .forwardGeocode({
       query: req.body.listing.location,
@@ -80,6 +88,11 @@ module.exports.renderEditForm = async (req, res) => {
 };
 
 module.exports.updateListing = async (req, res) => {
+  if (!geocodingClient) {
+    req.flash("error", "Mapbox access token is not configured.");
+    return res.redirect(`/listings/${req.params.id}/edit`);
+  }
+
   let { id } = req.params;
   let listing = await Listing.findById(id);
 
