@@ -19,7 +19,7 @@ const listingRouter = require("./routers/listings.js");
 const reviewRouter = require("./routers/review.js");
 const userRouter = require("./routers/user.js");
 
-const dbUrl = process.env.ATLASDB_URL;
+const dbUrl = process.env.MONGO_URL;
 
 main()
   .then(() => {
@@ -46,16 +46,16 @@ if (MongoStore && typeof MongoStore.create !== "function" && MongoStore.default)
 }
 
 const store = MongoStore.create({
-  mongoUrl: process.env.ATLASDB_URL,
+  mongoUrl: process.env.MONGO_URL,
   crypto: {
-    secret: process.env.SECRET,
+    secret: process.env.SESSION_SECRET,
   },
   touchAfter: 24 * 3600,
 });
 
 const sessionOptions = {
   store,
-  secret: process.env.SECRET || "major-project-secret",
+  secret: process.env.SESSION_SECRET || "major-project-secret",
   resave: false,
   saveUninitialized: false,
 };
