@@ -19,78 +19,102 @@ const listingRouter = require("./routers/listings.js");
 const reviewRouter = require("./routers/review.js");
 const userRouter = require("./routers/user.js");
 
-const dbUrl = process.env.MONGO_URL;
+const fallbackDbUrl = "mongodb://127.0.0.1:27017/wanderlust";
+const dbUrl = (process.env.MONGO_URL || fallbackDbUrl).replace(/[<>]/g, "");
 
-main()
-  .then(() => {
-    console.log("Connected to MongoDB");
-  })
-  .catch((err) => {
-    console.error("MongoDB connection failed:", err);
-  });
+const PORT = process.env.PORT|| 8081;
+
+async function connectWithFallback() {
+  try {
+    await mongoose.connect(dbUrl, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    return dbUrl;
+  } catch (err) {
+    console.warn(
+      "Primary MongoDB connection failed, trying fallback local database..."
+    );
+    try {
+      await mongoose.connect(fallbackDbUrl, {
+        serverSelectionTimeoutMS: 5000,
+      });
+      return fallbackDbUrl;
+    } catch (fallbackErr) {
+      throw fallbackErr;
+    }
+  }
+}
 
 async function main() {
-  await mongoose.connect(dbUrl);
+  const connectedUrl = await connectWithFallback();
+  console.log("Connected to MongoDB");
+
+  app.set("view engine", "ejs");
+  app.set("views", path.join(__dirname, "views"));
+  app.use(express.urlencoded({ extended: true }));
+  app.use(methodOverride("_method"));
+  app.engine("ejs", ejsMate);
+  app.use(express.static(path.join(__dirname, "public")));
+
+  let MongoStore = require("connect-mongo");
+  if (MongoStore && typeof MongoStore.create !== "function" && MongoStore.default) {
+    MongoStore = MongoStore.default;
+  }
+
+  const store = MongoStore.create({
+    mongoUrl: connectedUrl,
+    crypto: {
+      secret: process.env.SESSION_SECRET || "major-project-secret",
+    },
+    touchAfter: 24 * 3600,
+  });
+
+  const sessionOptions = {
+    store,
+    secret: process.env.SESSION_SECRET || "major-project-secret",
+    resave: false,
+    saveUninitialized: false,
+  };
+
+  app.use(session(sessionOptions));
+  app.use(flash());
+
+  app.use(passport.initialize());
+  app.use(passport.session());
+  passport.use(new LocalStrategy(User.authenticate()));
+
+  passport.serializeUser(User.serializeUser());
+  passport.deserializeUser(User.deserializeUser());
+
+  app.use((req, res, next) => {
+    res.locals.success = req.flash("success");
+    res.locals.error = req.flash("error");
+    res.locals.currUser = req.user;
+    next();
+  });
+
+  app.use("/listings", listingRouter);
+  app.use("/listings/:id/reviews", reviewRouter);
+  app.use("/", userRouter);
+
+  app.all("*", (req, res, next) => {
+    next(new ExpressError(404, "Page not Found!"));
+  });
+
+  app.use((err, req, res, next) => {
+    let { statusCode = 500, message = "Somthing went wrong!" } = err;
+    res.status(statusCode).render("error.ejs", { message });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 }
 
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
-app.use(express.urlencoded({ extended: true }));
-app.use(methodOverride("_method"));
-app.engine("ejs", ejsMate);
-app.use(express.static(path.join(__dirname, "public")));
-
-let MongoStore = require("connect-mongo");
-if (MongoStore && typeof MongoStore.create !== "function" && MongoStore.default) {
-  MongoStore = MongoStore.default;
-}
-
-const store = MongoStore.create({
-  mongoUrl: process.env.MONGO_URL,
-  crypto: {
-    secret: process.env.SESSION_SECRET,
-  },
-  touchAfter: 24 * 3600,
+main().catch((err) => {
+  console.error("MongoDB connection failed:", err);
+  process.exit(1);
 });
 
-const sessionOptions = {
-  store,
-  secret: process.env.SESSION_SECRET || "major-project-secret",
-  resave: false,
-  saveUninitialized: false,
-};
 
-app.use(session(sessionOptions));
-app.use(flash());
 
-app.use(passport.initialize());
-app.use(passport.session());
-passport.use(new LocalStrategy(User.authenticate()));
-
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
-
-app.use((req, res, next) => {
-  res.locals.success = req.flash("success");
-  res.locals.error = req.flash("error");
-  res.locals.currUser = req.user;
-  next();
-});
-
-app.use("/listings", listingRouter);
-app.use("/listings/:id/reviews", reviewRouter);
-app.use("/", userRouter);
-
-app.all("*", (req, res, next) => {
-  next(new ExpressError(404, "Page not Found!"));
-});
-
-app.use((err, req, res, next) => {
-  let { statusCode = 500, message = "Somthing went wrong!" } = err;
-  res.status(statusCode).render("error.ejs", { message });
-});
-
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
