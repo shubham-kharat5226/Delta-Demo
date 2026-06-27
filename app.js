@@ -19,18 +19,30 @@ const listingRouter = require("./routers/listings.js");
 const reviewRouter = require("./routers/review.js");
 const userRouter = require("./routers/user.js");
 
-const dbUrl =
-  process.env.ATLASDB_URL;
-const sessionSecret =
-  process.env.SECRET || process.env.SECRET ||
-  "major-project-secret";
+const dbUrl = process.env.ATLASDB_URL;
+const sessionSecret = process.env.SECRET || "major-project-secret";
+
+if (!dbUrl) {
+  console.error("Error: ATLASDB_URL environment variable is not set.");
+  console.error(
+    "On Render: go to your service → Environment → add ATLASDB_URL with your MongoDB connection string."
+  );
+  console.error(
+    "Example: mongodb+srv://<USER>:<PASSWORD>@cluster0.mongodb.net/<DBNAME>?retryWrites=true&w=majority"
+  );
+  process.exit(1);
+}
 
 main()
   .then(() => {
     console.log("Connected to MongoDB");
   })
   .catch((err) => {
-    console.error("MongoDB connection failed:", err);
+    console.error("MongoDB connection failed:");
+    console.error("- Confirm the Render `ATLASDB_URL` environment variable contains the correct username and password.");
+    console.error("- If your password contains special characters, URL-encode them (e.g. @ -> %40).");
+    console.error("- See README.md for Render setup steps.");
+    console.error(err);
     process.exit(1);
   });
 
